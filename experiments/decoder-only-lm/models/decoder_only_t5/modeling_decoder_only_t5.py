@@ -133,7 +133,7 @@ def load_tf_weights_in_t5(model, config, tf_checkpoint_path):
                     pointer = getattr(pointer, "final_layer_norm")
             elif scope_names[0] == "scale":
                 pointer = getattr(pointer, "weight")
-            elif scope_names[0] == "output_bias" or scope_names[0] == "beta":
+            elif scope_names[0] in ["output_bias", "beta"]:
                 pointer = getattr(pointer, "bias")
             elif scope_names[0] == "squad":
                 pointer = getattr(pointer, "classifier")
@@ -549,8 +549,7 @@ class DecoderOnlyT5LayerSelfAttention(nn.Module):
             output_attentions=output_attentions,
         )
         hidden_states = hidden_states + self.dropout(attention_output[0])
-        outputs = (hidden_states,) + attention_output[1:]  # add attentions if we output them
-        return outputs
+        return (hidden_states,) + attention_output[1:]
 
 
 # class T5LayerCrossAttention(nn.Module):
@@ -716,12 +715,11 @@ class DecoderOnlyT5PreTrainedModel(PreTrainedModel):
     def dummy_inputs(self):
         input_ids = torch.tensor(DUMMY_INPUTS)
         input_mask = torch.tensor(DUMMY_MASK)
-        dummy_inputs = {
+        return {
             # "decoder_input_ids": input_ids,
             "input_ids": input_ids,
             # "decoder_attention_mask": input_mask,
         }
-        return dummy_inputs
 
     def _init_weights(self, module):
         """Initialize the weights"""
@@ -819,11 +817,11 @@ class DecoderOnlyT5Stack(DecoderOnlyT5PreTrainedModel):
         assert_device_map(self.device_map, len(self.block))
         self.model_parallel = True
         self.first_device = "cpu" if "cpu" in self.device_map.keys() else "cuda:" + str(min(self.device_map.keys()))
-        self.last_device = "cuda:" + str(max(self.device_map.keys()))
+        self.last_device = f"cuda:{str(max(self.device_map.keys()))}"
         # Load onto devices
         for k, v in self.device_map.items():
             for layer in v:
-                cuda_device = "cuda:" + str(k)
+                cuda_device = f"cuda:{str(k)}"
                 self.block[layer] = self.block[layer].to(cuda_device)
 
         # Set embed_tokens to first layer
